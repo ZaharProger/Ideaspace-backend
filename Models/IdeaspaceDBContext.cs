@@ -1,4 +1,5 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using Ideaspace_backend.Models.Entities;
+using Microsoft.EntityFrameworkCore;
 
 namespace Ideaspace_backend.Models
 {

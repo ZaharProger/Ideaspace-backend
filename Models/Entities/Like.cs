@@ -1,10 +1,11 @@
 ﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 
-namespace Ideaspace_backend.Models
+namespace Ideaspace_backend.Models.Entities
 {
     public class Like
     {
-        [Key]
+        [DatabaseGenerated(DatabaseGeneratedOption.Identity), Key]
         public ulong Id { get; set; }
 
         public ulong? UserId { get; set; }
