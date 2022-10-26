@@ -6,15 +6,15 @@ namespace Ideaspace_backend.Models.Entities
     public class Post
     {
         [DatabaseGenerated(DatabaseGeneratedOption.Identity), Key]
-        public ulong Id { get; set; }
+        public long post_id { get; set; }
 
-        public ulong? UserId { get; set; }
+        public long? user_id { get; set; }
 
-        public ulong CreationDate { get; set; }
+        public long creation_date { get; set; }
 
-        public uint CreationTime { get; set; }
+        public int creation_time { get; set; }
 
         [Column(TypeName = "varchar(250)")]
-        public string Content { get; set; }
+        public string content { get; set; }
     }
 }

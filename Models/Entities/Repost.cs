@@ -6,10 +6,10 @@ namespace Ideaspace_backend.Models.Entities
     public class Repost
     {
         [DatabaseGenerated(DatabaseGeneratedOption.Identity), Key]
-        public ulong Id { get; set; }
+        public long repost_id { get; set; }
 
-        public ulong? UserId { get; set; }
+        public long? user_id { get; set; }
 
-        public ulong? PostId { get; set; }
+        public long? post_id { get; set; }
     }
 }

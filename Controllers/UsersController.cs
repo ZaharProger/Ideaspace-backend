@@ -56,7 +56,12 @@ namespace Ideaspace_backend.Controllers
                     var encryptionData = Encoding.UTF8.GetBytes($"{foundUser[0].user_id}-{foundUser[0].user_login}-{DateTime.Now.Second}");
                     sessionId = passwordEncryptor.ComputeHash(encryptionData);
 
-                    //TODO: Добавить создание сессии
+                    await context.Sessions.AddAsync(new Session()
+                    {
+                        session_id = sessionId,
+                        user_id = foundUser[0].user_id
+                    });
+                    await context.SaveChangesAsync();
                 }
                 else
                 {

@@ -1,12 +1,13 @@
 ﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace Ideaspace_backend.Models.Entities
 {
     public class Session
     {
-        [Key]
-        public ulong Id { get; set; }
+        [Column(TypeName = "varbinary(100"), Key]
+        public byte[] session_id { get; set; }
 
-        public ulong? UserId { get; set; }
+        public long? user_id { get; set; }
     }
 }
