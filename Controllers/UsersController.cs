@@ -37,7 +37,7 @@ namespace Ideaspace_backend.Controllers
         private async Task<BaseResponse> AuthorizeUser(AuthParams authParams)
         {
             var foundUser = await context.Users
-                .Where(user => user.user_login == authParams.Login)
+                .Where(user => user.user_login.Equals(authParams.Login))
                 .ToArrayAsync();
 
             var passwordByteArray = Encoding.UTF8.GetBytes(authParams.Password);
@@ -82,7 +82,7 @@ namespace Ideaspace_backend.Controllers
         private async Task<BaseResponse> RegisterUser(AuthParams authParams)
         {
             var isUserExist = await context.Users
-                .AnyAsync(user => user.user_login == authParams.Login);
+                .AnyAsync(user => user.user_login.Equals(authParams.Login));
 
             if (!isUserExist)
             {
