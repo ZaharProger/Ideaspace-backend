@@ -174,5 +174,34 @@ namespace Ideaspace_backend.Controllers
         {
             return new UserDataResponse();
         }
+
+        // DELETE: /Users?sessionId=
+        [HttpDelete]
+        public async Task<JsonResult> LogOutHandler(long sessionId)
+        {
+            Session? sessionToRemove;
+
+            try
+            {
+                sessionToRemove = await context.Sessions
+                    .FirstAsync(session => session.session_id == sessionId);
+            }
+            catch (InvalidOperationException)
+            {
+                sessionToRemove = null;
+            }
+
+            if (sessionToRemove != null)
+            {
+                context.Sessions.Remove(sessionToRemove);
+                await context.SaveChangesAsync();
+            }
+              
+            return new JsonResult(new BaseResponse()
+            {
+                Result = sessionToRemove != null,
+                Message = sessionToRemove != null? ApiValues.SESSION_REMOVED : ApiValues.SESSION_NOT_FOUND
+            });
+        }
     }
 }

@@ -11,6 +11,7 @@ namespace Ideaspace_backend.Constants
         public static readonly string REG_REQUEST_TYPE = "reg";
         public static readonly string LOGIN_FIELD_TYPE = "login";
         public static readonly string PASSWORD_FIELD_TYPE = "password";
+        public static readonly string SESSION_REMOVED = "Сессия успешно завершена!";
         public static readonly string SESSION_NOT_FOUND = "Ваша сессия просрочена!";
         public static readonly DateTime UNIX_START_DATE = new DateTime(1970, 1, 1);
     }
