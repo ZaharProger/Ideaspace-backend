@@ -9,7 +9,9 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Ideaspace_backend.Models;
 using Ideaspace_backend.Models.Entities;
-using Ideaspace_backend.Models.Http;
+using Ideaspace_backend.Models.Http.Params;
+using Ideaspace_backend.Models.Http.Responses;
+using Ideaspace_backend.Constants;
 
 namespace Ideaspace_backend.Controllers
 {
@@ -18,17 +20,24 @@ namespace Ideaspace_backend.Controllers
     public class UsersController : IdeaspaceController
     {
         private readonly SHA256 passwordEncryptor;
+        private readonly Dictionary<ApiEnum, Func<string, Task<UserDataResponse>>> usersFuncs;
 
         public UsersController(IdeaspaceDBContext context) : base(context)
         {
             passwordEncryptor = SHA256.Create();
+            usersFuncs = new Dictionary<ApiEnum, Func<string, Task<UserDataResponse>>>()
+            {
+                { ApiEnum.SESSION_ID, GetUserBySessionId },
+                { ApiEnum.USER_ID, GetUserById },
+                { ApiEnum.SEARCH_STRING, GetUsersBySearchString }
+            };
         }
 
         // POST: /Users
         [HttpPost]
         public async Task<JsonResult> AuthRegHandler([FromForm] AuthParams authParams)
         {
-            var response = authParams.RequestType == ApiValues.AUTH_REQUEST_TYPE ? 
+            var response = authParams.RequestType == ApiValues.AUTH_REQUEST_TYPE ?
                 await AuthorizeUser(authParams) : await RegisterUser(authParams);
 
             return new JsonResult(response);
@@ -45,16 +54,14 @@ namespace Ideaspace_backend.Controllers
 
             var messageForClient = ApiValues.AUTH_WRONG_LOGIN;
             var incorrectFieldType = ApiValues.LOGIN_FIELD_TYPE;
-            var sessionId = Array.Empty<byte>();
+            var sessionId = -1L;
 
             if (foundUser.Length != 0)
             {
                 if (foundUser[0].user_password.SequenceEqual(hashedPassword))
                 {
                     messageForClient = ApiValues.AUTH_SUCCESS;
-
-                    var encryptionData = Encoding.UTF8.GetBytes($"{foundUser[0].user_id}-{foundUser[0].user_login}-{DateTime.Now.Second}");
-                    sessionId = passwordEncryptor.ComputeHash(encryptionData);
+                    sessionId = (long)DateTime.Now.Subtract(ApiValues.UNIX_START_DATE).TotalSeconds;
 
                     await context.Sessions.AddAsync(new Session()
                     {
@@ -103,6 +110,69 @@ namespace Ideaspace_backend.Controllers
                 Message = !isUserExist ? "Вы успешно зарегистрировались!" : "Пользователь с введеным логином уже существует!",
                 FieldType = ApiValues.LOGIN_FIELD_TYPE
             };
+        }
+
+        // GET: /Users?sessionId=&userId=&searchString=&
+        [HttpGet]
+        public async Task<JsonResult> UsersHandler([FromQuery] GetUsersParams getUsersParams)
+        {
+            var queryParams = new Dictionary<ApiEnum, string>()
+            {
+                { ApiEnum.SESSION_ID, getUsersParams.SessionId },
+                { ApiEnum.USER_ID, getUsersParams.UserId },
+                { ApiEnum.SEARCH_STRING, getUsersParams.SearchString }
+            };
+
+            var nonEmptyParam = queryParams
+                .First(queryParam => !queryParam.Value.Equals(""));
+
+            var response = await usersFuncs[nonEmptyParam.Key](nonEmptyParam.Value);
+
+            return new JsonResult(response);
+        }
+
+        private async Task<UserDataResponse> GetUserBySessionId(string sessionId)
+        {
+            User[]? foundData = null;
+            try
+            {
+                var parsedSessionId = long.Parse(sessionId);
+
+                foundData = await context.Sessions
+                    .Join(context.Users, session => session.user_id, user => user.user_id, (session, user) => new
+                    {
+                        sessionId = session.session_id,
+                        userData = new User()
+                        {
+                            user_login = user.user_login,
+                            user_birthday = user.user_birthday,
+                            user_status = user.user_status
+                        }
+                    })
+                    .Where(joinItem => joinItem.sessionId == parsedSessionId)
+                    .Select(foundItem => foundItem.userData)
+                    .ToArrayAsync();
+            }
+            catch(Exception){
+                foundData = Array.Empty<User>();
+            }
+
+            return new UserDataResponse()
+            {
+                Result = foundData.Length != 0,
+                Message = foundData.Length != 0 ? "" : ApiValues.SESSION_NOT_FOUND,
+                Data = foundData
+            };
+        }
+
+        private async Task<UserDataResponse> GetUserById(string userId)
+        {
+            return new UserDataResponse();
+        }
+
+        private async Task<UserDataResponse> GetUsersBySearchString(string searchString)
+        {
+            return new UserDataResponse();
         }
     }
 }

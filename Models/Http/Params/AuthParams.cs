@@ -1,4 +1,4 @@
-﻿namespace Ideaspace_backend.Models.Http
+﻿namespace Ideaspace_backend.Models.Http.Params
 {
     public class AuthParams
     {
