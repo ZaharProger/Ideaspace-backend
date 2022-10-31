@@ -10,6 +10,9 @@ namespace Ideaspace_backend.Constants
         public static readonly string AUTH_REQUEST_TYPE = "auth";
         public static readonly string REG_REQUEST_TYPE = "reg";
         public static readonly string LOGIN_FIELD_TYPE = "login";
+        public static readonly string SESSION_ID_KEY = "session_id";
+        public static readonly string IS_LOGGED_KEY = "is_logged";
+        public static readonly string COOKIE_PATH = "/";
         public static readonly string PASSWORD_FIELD_TYPE = "password";
         public static readonly string SESSION_REMOVED = "Сессия успешно завершена!";
         public static readonly string SESSION_NOT_FOUND = "Ваша сессия просрочена!";

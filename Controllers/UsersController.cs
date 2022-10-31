@@ -1,10 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-using System.Text;
+﻿using System.Text;
 using System.Security.Cryptography;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Ideaspace_backend.Models;
@@ -35,7 +30,7 @@ namespace Ideaspace_backend.Controllers
 
         // POST: /Users
         [HttpPost]
-        public async Task<JsonResult> AuthRegHandler([FromForm] AuthParams authParams)
+        public async Task<IActionResult> AuthRegHandler([FromForm] AuthParams authParams)
         {
             var response = authParams.RequestType == ApiValues.AUTH_REQUEST_TYPE ?
                 await AuthorizeUser(authParams) : await RegisterUser(authParams);
@@ -69,6 +64,22 @@ namespace Ideaspace_backend.Controllers
                         user_id = foundUser[0].user_id
                     });
                     await context.SaveChangesAsync();
+
+                    HttpContext.Response.Cookies.Append(ApiValues.SESSION_ID_KEY, sessionId.ToString(), new CookieOptions()
+                    {
+                        Path = ApiValues.COOKIE_PATH,
+                        Secure = true,
+                        HttpOnly = true,
+                        SameSite = SameSiteMode.Strict,
+                        Expires = DateTimeOffset.Now.AddDays(7)
+                    });
+                    HttpContext.Response.Cookies.Append(ApiValues.IS_LOGGED_KEY, "true", new CookieOptions()
+                    {
+                        Path = ApiValues.COOKIE_PATH,
+                        Secure = true,
+                        SameSite = SameSiteMode.Strict,
+                        Expires = DateTimeOffset.Now.AddDays(7)
+                    });
                 }
                 else
                 {
@@ -77,12 +88,11 @@ namespace Ideaspace_backend.Controllers
                 }
             }
 
-            return new AuthResponse()
+            return new RegAuthResponse()
             {
                 Result = messageForClient == ApiValues.AUTH_SUCCESS,
                 Message = messageForClient,
-                FieldType = incorrectFieldType,
-                SessionId = sessionId
+                FieldType = incorrectFieldType
             };
         }
 
@@ -112,21 +122,45 @@ namespace Ideaspace_backend.Controllers
             };
         }
 
-        // GET: /Users?sessionId=&userId=&searchString=&
+        private static bool CheckSession(IRequestCookieCollection cookies)
+        {
+            return cookies[ApiValues.SESSION_ID_KEY] != null;
+        }
+
+        // GET: /Users?userId=&searchString=
         [HttpGet]
         public async Task<JsonResult> UsersHandler([FromQuery] GetUsersParams getUsersParams)
         {
-            var queryParams = new Dictionary<ApiEnum, string>()
+            var cookies = HttpContext.Request.Cookies;
+            var isSessionValid = CheckSession(cookies);
+            var response = new UserDataResponse()
             {
-                { ApiEnum.SESSION_ID, getUsersParams.SessionId },
-                { ApiEnum.USER_ID, getUsersParams.UserId },
-                { ApiEnum.SEARCH_STRING, getUsersParams.SearchString }
+                Result = false,
+                Message = ApiValues.SESSION_NOT_FOUND,
+                Data = Array.Empty<User>()
             };
 
-            var nonEmptyParam = queryParams
-                .First(queryParam => !queryParam.Value.Equals(""));
+            if (isSessionValid)
+            {
+                var sessionId = cookies[ApiValues.SESSION_ID_KEY];
+                var queryParams = new Dictionary<ApiEnum, string>()
+                {
+                    { ApiEnum.USER_ID, getUsersParams.UserId },
+                    { ApiEnum.SEARCH_STRING, getUsersParams.SearchString }
+                };
 
-            var response = await usersFuncs[nonEmptyParam.Key](nonEmptyParam.Value);
+                try
+                {
+                    var nonEmptyParam = queryParams
+                        .First(queryParam => !queryParam.Value.Equals(""));
+
+                    response = await usersFuncs[nonEmptyParam.Key](nonEmptyParam.Value);
+                }
+                catch (InvalidOperationException)
+                {
+                    response = await usersFuncs[ApiEnum.SESSION_ID](sessionId);
+                }
+            }
 
             return new JsonResult(response);
         }
@@ -175,27 +209,35 @@ namespace Ideaspace_backend.Controllers
             return new UserDataResponse();
         }
 
-        // DELETE: /Users?sessionId=
+        // DELETE: /Users
         [HttpDelete]
-        public async Task<JsonResult> LogOutHandler(long sessionId)
+        public async Task<JsonResult> LogOutHandler()
         {
-            Session? sessionToRemove;
+            Session? sessionToRemove = null;
+            var cookies = HttpContext.Request.Cookies;
 
-            try
+            if (CheckSession(cookies))
             {
-                sessionToRemove = await context.Sessions
-                    .FirstAsync(session => session.session_id == sessionId);
-            }
-            catch (InvalidOperationException)
-            {
-                sessionToRemove = null;
-            }
+                try
+                {   
+                    var parsedSessionId = long.Parse(cookies[ApiValues.SESSION_ID_KEY]);
 
-            if (sessionToRemove != null)
-            {
-                context.Sessions.Remove(sessionToRemove);
-                await context.SaveChangesAsync();
+                    sessionToRemove = await context.Sessions
+                        .FirstAsync(session => session.session_id == parsedSessionId);
+                }
+                catch (Exception)
+                {}
+
+                if (sessionToRemove != null)
+                {
+                    HttpContext.Response.Cookies.Delete(ApiValues.SESSION_ID_KEY);
+                    HttpContext.Response.Cookies.Delete(ApiValues.IS_LOGGED_KEY);
+
+                    context.Sessions.Remove(sessionToRemove);
+                    await context.SaveChangesAsync();
+                }
             }
+            
               
             return new JsonResult(new BaseResponse()
             {
