@@ -73,13 +73,6 @@ namespace Ideaspace_backend.Controllers
                         SameSite = SameSiteMode.Strict,
                         Expires = DateTimeOffset.Now.AddDays(7)
                     });
-                    HttpContext.Response.Cookies.Append(ApiValues.IS_LOGGED_KEY, "true", new CookieOptions()
-                    {
-                        Path = ApiValues.COOKIE_PATH,
-                        Secure = true,
-                        SameSite = SameSiteMode.Strict,
-                        Expires = DateTimeOffset.Now.AddDays(7)
-                    });
                 }
                 else
                 {
@@ -122,17 +115,33 @@ namespace Ideaspace_backend.Controllers
             };
         }
 
-        private static bool CheckSession(IRequestCookieCollection cookies)
+        private bool CheckSession(string cookieKey)
         {
-            return cookies[ApiValues.SESSION_ID_KEY] != null;
+            var isSessionValid = true;
+            if (HttpContext.Request.Cookies[ApiValues.SESSION_ID_KEY] != null)
+            {
+                try
+                {
+                    long.Parse(HttpContext.Request.Cookies[ApiValues.SESSION_ID_KEY]);
+                }
+                catch (FormatException)
+                {
+                    isSessionValid = false;
+                }
+            }
+            else
+            {
+                isSessionValid = false;
+            }
+
+            return isSessionValid;
         }
 
         // GET: /Users?userId=&searchString=
         [HttpGet]
         public async Task<JsonResult> UsersHandler([FromQuery] GetUsersParams getUsersParams)
         {
-            var cookies = HttpContext.Request.Cookies;
-            var isSessionValid = CheckSession(cookies);
+            var isSessionValid = CheckSession(ApiValues.SESSION_ID_KEY);
             var response = new UserDataResponse()
             {
                 Result = false,
@@ -142,7 +151,7 @@ namespace Ideaspace_backend.Controllers
 
             if (isSessionValid)
             {
-                var sessionId = cookies[ApiValues.SESSION_ID_KEY];
+                var sessionId = HttpContext.Request.Cookies[ApiValues.SESSION_ID_KEY];
                 var queryParams = new Dictionary<ApiEnum, string>()
                 {
                     { ApiEnum.USER_ID, getUsersParams.UserId },
@@ -167,29 +176,23 @@ namespace Ideaspace_backend.Controllers
 
         private async Task<UserDataResponse> GetUserBySessionId(string sessionId)
         {
-            User[]? foundData = null;
-            try
-            {
-                var parsedSessionId = long.Parse(sessionId);
+            User[]? foundData = Array.Empty<User>();
+            var parsedSessionId = long.Parse(sessionId);
 
-                foundData = await context.Sessions
-                    .Join(context.Users, session => session.user_id, user => user.user_id, (session, user) => new
+            foundData = await context.Sessions
+                .Join(context.Users, session => session.user_id, user => user.user_id, (session, user) => new
+                {
+                    sessionId = session.session_id,
+                    userData = new User()
                     {
-                        sessionId = session.session_id,
-                        userData = new User()
-                        {
-                            user_login = user.user_login,
-                            user_birthday = user.user_birthday,
-                            user_status = user.user_status
-                        }
-                    })
-                    .Where(joinItem => joinItem.sessionId == parsedSessionId)
-                    .Select(foundItem => foundItem.userData)
-                    .ToArrayAsync();
-            }
-            catch(Exception){
-                foundData = Array.Empty<User>();
-            }
+                        user_login = user.user_login,
+                        user_birthday = user.user_birthday,
+                        user_status = user.user_status
+                    }
+                })
+                .Where(joinItem => joinItem.sessionId == parsedSessionId)
+                .Select(foundItem => foundItem.userData)
+                .ToArrayAsync();
 
             return new UserDataResponse()
             {
@@ -214,13 +217,11 @@ namespace Ideaspace_backend.Controllers
         public async Task<JsonResult> LogOutHandler()
         {
             Session? sessionToRemove = null;
-            var cookies = HttpContext.Request.Cookies;
-
-            if (CheckSession(cookies))
+            if (CheckSession(ApiValues.SESSION_ID_KEY))
             {
                 try
                 {   
-                    var parsedSessionId = long.Parse(cookies[ApiValues.SESSION_ID_KEY]);
+                    var parsedSessionId = long.Parse(HttpContext.Request.Cookies[ApiValues.SESSION_ID_KEY]);
 
                     sessionToRemove = await context.Sessions
                         .FirstAsync(session => session.session_id == parsedSessionId);
@@ -231,18 +232,48 @@ namespace Ideaspace_backend.Controllers
                 if (sessionToRemove != null)
                 {
                     HttpContext.Response.Cookies.Delete(ApiValues.SESSION_ID_KEY);
-                    HttpContext.Response.Cookies.Delete(ApiValues.IS_LOGGED_KEY);
 
                     context.Sessions.Remove(sessionToRemove);
                     await context.SaveChangesAsync();
                 }
             }
             
-              
             return new JsonResult(new BaseResponse()
             {
                 Result = sessionToRemove != null,
                 Message = sessionToRemove != null? ApiValues.SESSION_REMOVED : ApiValues.SESSION_NOT_FOUND
+            });
+        }
+
+        [HttpPut]
+        public async Task<JsonResult> EditUser([FromForm] EditUserParams newUserData)
+        {
+            User? foundUser = null;
+            if (CheckSession(ApiValues.SESSION_ID_KEY))
+            {
+                var parsedSessionId = long.Parse(HttpContext.Request.Cookies[ApiValues.SESSION_ID_KEY]);
+
+                try
+                {
+                    var foundSession = await context.Sessions
+                        .FirstAsync(session => session.session_id == parsedSessionId);
+
+                    foundUser = await context.Users
+                        .FirstAsync(user => user.user_id == foundSession.user_id);
+
+                    foundUser.user_birthday = newUserData.UserBirthday;
+                    foundUser.user_status = newUserData.UserStatus;
+
+                    await context.SaveChangesAsync();
+                }
+                catch (InvalidOperationException)
+                {}
+            }
+
+            return new JsonResult(new BaseResponse()
+            {
+                Result = foundUser != null,
+                Message = ""
             });
         }
     }
