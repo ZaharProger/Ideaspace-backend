@@ -118,11 +118,11 @@ namespace Ideaspace_backend.Controllers
         private bool CheckSession(string cookieKey)
         {
             var isSessionValid = true;
-            if (HttpContext.Request.Cookies[ApiValues.SESSION_ID_KEY] != null)
+            if (HttpContext.Request.Cookies[cookieKey] != null)
             {
                 try
                 {
-                    long.Parse(HttpContext.Request.Cookies[ApiValues.SESSION_ID_KEY]);
+                    long.Parse(HttpContext.Request.Cookies[cookieKey]);
                 }
                 catch (FormatException)
                 {
