@@ -5,11 +5,28 @@ namespace Ideaspace_backend.Controllers
 {
     public class IdeaspaceController : ControllerBase
     {
-        protected readonly IdeaspaceDBContext context;
+        protected IdeaspaceDBContext context;
 
-        public IdeaspaceController(IdeaspaceDBContext context)
+        protected bool CheckSession(string cookieKey)
         {
-            this.context = context;
+            var isSessionValid = true;
+            if (HttpContext.Request.Cookies[cookieKey] != null)
+            {
+                try
+                {
+                    long.Parse(HttpContext.Request.Cookies[cookieKey]);
+                }
+                catch (FormatException)
+                {
+                    isSessionValid = false;
+                }
+            }
+            else
+            {
+                isSessionValid = false;
+            }
+
+            return isSessionValid;
         }
     }
 }

@@ -17,8 +17,9 @@ namespace Ideaspace_backend.Controllers
         private readonly SHA256 passwordEncryptor;
         private readonly Dictionary<ApiEnum, Func<string, Task<UserDataResponse>>> usersFuncs;
 
-        public UsersController(IdeaspaceDBContext context) : base(context)
+        public UsersController(IdeaspaceDBContext context)
         {
+            this.context = context;
             passwordEncryptor = SHA256.Create();
             usersFuncs = new Dictionary<ApiEnum, Func<string, Task<UserDataResponse>>>()
             {
@@ -113,28 +114,6 @@ namespace Ideaspace_backend.Controllers
                 Message = !isUserExist ? "Вы успешно зарегистрировались!" : "Пользователь с введеным логином уже существует!",
                 FieldType = ApiValues.LOGIN_FIELD_TYPE
             };
-        }
-
-        private bool CheckSession(string cookieKey)
-        {
-            var isSessionValid = true;
-            if (HttpContext.Request.Cookies[cookieKey] != null)
-            {
-                try
-                {
-                    long.Parse(HttpContext.Request.Cookies[cookieKey]);
-                }
-                catch (FormatException)
-                {
-                    isSessionValid = false;
-                }
-            }
-            else
-            {
-                isSessionValid = false;
-            }
-
-            return isSessionValid;
         }
 
         // GET: /Users?userId=&searchString=
