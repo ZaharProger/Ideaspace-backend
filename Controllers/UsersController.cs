@@ -188,7 +188,20 @@ namespace Ideaspace_backend.Controllers
 
         private async Task<UserDataResponse> GetUsersBySearchString(string searchString)
         {
-            return new UserDataResponse();
+            var foundUsers = await context.Users
+                .Where(user => user.user_login.Contains(searchString))
+                .Select(foundUser => new User()
+                {
+                    user_login = foundUser.user_login
+                })
+                .ToArrayAsync();
+
+            return new UserDataResponse()
+            {
+                Result = foundUsers.Length != 0,
+                Message = "",
+                Data = foundUsers
+            };
         }
 
         // DELETE: /Users
