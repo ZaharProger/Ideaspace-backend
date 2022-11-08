@@ -2,8 +2,8 @@
 
 namespace Ideaspace_backend.Models.Http.Responses
 {
-    public class UserDataResponse : BaseResponse
+    public class DataResponse<T> : BaseResponse
     {
-        public User[] Data { get; set; }
+        public T[] Data { get; set; }
     }
 }

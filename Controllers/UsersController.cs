@@ -15,13 +15,13 @@ namespace Ideaspace_backend.Controllers
     public class UsersController : IdeaspaceController
     {
         private readonly SHA256 passwordEncryptor;
-        private readonly Dictionary<ApiEnum, Func<string, Task<UserDataResponse>>> usersFuncs;
+        private readonly Dictionary<ApiEnum, Func<string, int, Task<DataResponse<User>>>> usersFuncs;
 
         public UsersController(IdeaspaceDBContext context)
         {
             this.context = context;
             passwordEncryptor = SHA256.Create();
-            usersFuncs = new Dictionary<ApiEnum, Func<string, Task<UserDataResponse>>>()
+            usersFuncs = new Dictionary<ApiEnum, Func<string, int, Task<DataResponse<User>>>>()
             {
                 { ApiEnum.SESSION_ID, GetUserBySessionId },
                 { ApiEnum.USER_ID, GetUserById },
@@ -121,7 +121,7 @@ namespace Ideaspace_backend.Controllers
         public async Task<JsonResult> UsersHandler([FromQuery] GetUsersParams getUsersParams)
         {
             var isSessionValid = CheckSession(ApiValues.SESSION_ID_KEY);
-            var response = new UserDataResponse()
+            var response = new DataResponse<User>()
             {
                 Result = false,
                 Message = ApiValues.SESSION_NOT_FOUND,
@@ -142,18 +142,19 @@ namespace Ideaspace_backend.Controllers
                     var nonEmptyParam = queryParams
                         .First(queryParam => !queryParam.Value.Equals(""));
 
-                    response = await usersFuncs[nonEmptyParam.Key](nonEmptyParam.Value);
+
+                    response = await usersFuncs[nonEmptyParam.Key](nonEmptyParam.Value, getUsersParams.Limit);
                 }
                 catch (InvalidOperationException)
                 {
-                    response = await usersFuncs[ApiEnum.SESSION_ID](sessionId);
+                    response = await GetUserBySessionId(sessionId);
                 }
             }
 
             return new JsonResult(response);
         }
 
-        private async Task<UserDataResponse> GetUserBySessionId(string sessionId)
+        private async Task<DataResponse<User>> GetUserBySessionId(string sessionId, int ok=1)
         {
             User[]? foundData = Array.Empty<User>();
             var parsedSessionId = long.Parse(sessionId);
@@ -173,7 +174,7 @@ namespace Ideaspace_backend.Controllers
                 .Select(foundItem => foundItem.userData)
                 .ToArrayAsync();
 
-            return new UserDataResponse()
+            return new DataResponse<User>()
             {
                 Result = foundData.Length != 0,
                 Message = foundData.Length != 0 ? "" : ApiValues.SESSION_NOT_FOUND,
@@ -181,14 +182,15 @@ namespace Ideaspace_backend.Controllers
             };
         }
 
-        private async Task<UserDataResponse> GetUserById(string userId)
+        private async Task<DataResponse<User>> GetUserById(string userId, int ok=1)
         {
-            return new UserDataResponse();
+            return new DataResponse<User>();
         }
 
-        private async Task<UserDataResponse> GetUsersBySearchString(string searchString)
+        private async Task<DataResponse<User>> GetUsersBySearchString(string searchString, int limit=30)
         {
-            var foundUsers = await context.Users
+            var foundUsersPortion = new List<User>();
+            var usersArray = await context.Users
                 .Where(user => user.user_login.Contains(searchString))
                 .Select(foundUser => new User()
                 {
@@ -196,11 +198,19 @@ namespace Ideaspace_backend.Controllers
                 })
                 .ToArrayAsync();
 
-            return new UserDataResponse()
+            for (int i = 0; i < limit && i < usersArray.Length; ++i)
             {
-                Result = foundUsers.Length != 0,
+                foundUsersPortion.Add(usersArray[i]);
+            }
+
+            var foundUsersArray = foundUsersPortion.ToArray();
+
+            return new PaginationResponse<User>()
+            {
+                Result = foundUsersArray.Length != 0,
+                IsOver = limit > usersArray.Length,
                 Message = "",
-                Data = foundUsers
+                Data = foundUsersArray
             };
         }
 

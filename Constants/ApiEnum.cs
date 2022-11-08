@@ -4,6 +4,7 @@
     {
         SESSION_ID,
         USER_ID,
-        SEARCH_STRING
+        SEARCH_STRING,
+        LIMIT
     }
 }
