@@ -24,7 +24,7 @@ namespace Ideaspace_backend.Controllers
             usersFuncs = new Dictionary<ApiEnum, Func<string, int, Task<DataResponse<User>>>>()
             {
                 { ApiEnum.SESSION_ID, GetUserBySessionId },
-                { ApiEnum.USER_ID, GetUserById },
+                { ApiEnum.USER_LOGIN, GetUserByLogin },
                 { ApiEnum.SEARCH_STRING, GetUsersBySearchString }
             };
         }
@@ -133,7 +133,7 @@ namespace Ideaspace_backend.Controllers
                 var sessionId = HttpContext.Request.Cookies[ApiValues.SESSION_ID_KEY];
                 var queryParams = new Dictionary<ApiEnum, string>()
                 {
-                    { ApiEnum.USER_ID, getUsersParams.UserId },
+                    { ApiEnum.USER_LOGIN, getUsersParams.UserLogin },
                     { ApiEnum.SEARCH_STRING, getUsersParams.SearchString }
                 };
 
@@ -182,9 +182,26 @@ namespace Ideaspace_backend.Controllers
             };
         }
 
-        private async Task<DataResponse<User>> GetUserById(string userId, int ok=1)
+        private async Task<DataResponse<User>> GetUserByLogin(string userLogin, int ok=1)
         {
-            return new DataResponse<User>();
+            User[]? foundData = Array.Empty<User>();
+
+            foundData = await context.Users
+                .Where(user => user.user_login.Equals(userLogin))
+                .Select(foundUser => new User()
+                {
+                    user_login = foundUser.user_login,
+                    user_birthday = foundUser.user_birthday,
+                    user_status = foundUser.user_status
+                })
+                .ToArrayAsync();
+
+            return new DataResponse<User>()
+            {
+                Result = foundData.Length != 0,
+                Message = "",
+                Data = foundData
+            };
         }
 
         private async Task<DataResponse<User>> GetUsersBySearchString(string searchString, int limit=30)
@@ -208,7 +225,7 @@ namespace Ideaspace_backend.Controllers
             return new PaginationResponse<User>()
             {
                 Result = foundUsersArray.Length != 0,
-                IsOver = limit > usersArray.Length,
+                IsOver = limit >= usersArray.Length,
                 Message = "",
                 Data = foundUsersArray
             };

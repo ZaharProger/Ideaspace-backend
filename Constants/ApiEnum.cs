@@ -3,7 +3,7 @@
     public enum ApiEnum
     {
         SESSION_ID,
-        USER_ID,
+        USER_LOGIN,
         SEARCH_STRING,
         LIMIT
     }
