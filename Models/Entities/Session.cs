@@ -1,12 +1,14 @@
 ﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace Ideaspace_backend.Models.Entities
 {
     public class Session
     {
-        [Key]
-        public long session_id { get; set; }
+        [Column("session_id"), Key]
+        public long SessionId { get; set; }
 
-        public long? user_id { get; set; }
+        [Column("user_id")]
+        public long? UserId { get; set; }
     }
 }

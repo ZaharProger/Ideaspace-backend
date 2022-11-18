@@ -5,16 +5,22 @@ namespace Ideaspace_backend.Models.Entities
 {
     public class Post
     {
-        [DatabaseGenerated(DatabaseGeneratedOption.Identity), Key]
-        public long post_id { get; set; }
+        [DatabaseGenerated(DatabaseGeneratedOption.Identity), Key, Column("post_id")]
+        public long PostId { get; set; }
 
-        public long? user_id { get; set; }
+        [Column("user_id")]
+        public long? UserId { get; set; }
 
-        public long creation_date { get; set; }
+        [NotMapped]
+        public string UserLogin { get; set; }
 
-        public int creation_time { get; set; }
+        [Column("creation_date")]
+        public long CreationDate { get; set; }
 
-        [Column(TypeName = "varchar(250)")]
-        public string content { get; set; }
+        [Column("creation_time")]
+        public int CreationTime { get; set; }
+
+        [Column("content", TypeName = "varchar(250)")]
+        public string Content { get; set; }
     }
 }

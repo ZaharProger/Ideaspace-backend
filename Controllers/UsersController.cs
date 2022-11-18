@@ -14,13 +14,11 @@ namespace Ideaspace_backend.Controllers
     [ApiController]
     public class UsersController : IdeaspaceController
     {
-        private readonly SHA256 passwordEncryptor;
         private readonly Dictionary<ApiEnum, Func<string, int, Task<DataResponse<User>>>> usersFuncs;
 
         public UsersController(IdeaspaceDBContext context)
         {
             this.context = context;
-            passwordEncryptor = SHA256.Create();
             usersFuncs = new Dictionary<ApiEnum, Func<string, int, Task<DataResponse<User>>>>()
             {
                 { ApiEnum.SESSION_ID, GetUserBySessionId },
@@ -33,16 +31,18 @@ namespace Ideaspace_backend.Controllers
         [HttpPost]
         public async Task<IActionResult> AuthRegHandler([FromForm] AuthParams authParams)
         {
+            var passwordEncryptor = SHA256.Create();
+
             var response = authParams.RequestType == ApiValues.AUTH_REQUEST_TYPE ?
-                await AuthorizeUser(authParams) : await RegisterUser(authParams);
+                await AuthorizeUser(authParams, passwordEncryptor) : await RegisterUser(authParams, passwordEncryptor);
 
             return new JsonResult(response);
         }
 
-        private async Task<BaseResponse> AuthorizeUser(AuthParams authParams)
+        private async Task<BaseResponse> AuthorizeUser(AuthParams authParams, SHA256? passwordEncryptor)
         {
             var foundUser = await context.Users
-                .Where(user => user.user_login.Equals(authParams.Login))
+                .Where(user => user.UserLogin.Equals(authParams.Login))
                 .ToArrayAsync();
 
             var passwordByteArray = Encoding.UTF8.GetBytes(authParams.Password);
@@ -54,15 +54,15 @@ namespace Ideaspace_backend.Controllers
 
             if (foundUser.Length != 0)
             {
-                if (foundUser[0].user_password.SequenceEqual(hashedPassword))
+                if (foundUser[0].UserPassword.SequenceEqual(hashedPassword))
                 {
                     messageForClient = ApiValues.AUTH_SUCCESS;
                     sessionId = (long)DateTime.Now.Subtract(ApiValues.UNIX_START_DATE).TotalSeconds;
 
                     await context.Sessions.AddAsync(new Session()
                     {
-                        session_id = sessionId,
-                        user_id = foundUser[0].user_id
+                        SessionId = sessionId,
+                        UserId = foundUser[0].UserId
                     });
                     await context.SaveChangesAsync();
 
@@ -90,10 +90,10 @@ namespace Ideaspace_backend.Controllers
             };
         }
 
-        private async Task<BaseResponse> RegisterUser(AuthParams authParams)
+        private async Task<BaseResponse> RegisterUser(AuthParams authParams, SHA256? passwordEncryptor)
         {
             var isUserExist = await context.Users
-                .AnyAsync(user => user.user_login.Equals(authParams.Login));
+                .AnyAsync(user => user.UserLogin.Equals(authParams.Login));
 
             if (!isUserExist)
             {
@@ -102,8 +102,8 @@ namespace Ideaspace_backend.Controllers
 
                 await context.Users.AddAsync(new User()
                 {
-                    user_login = authParams.Login,
-                    user_password = hashedPassword
+                    UserLogin = authParams.Login,
+                    UserPassword = hashedPassword
                 });
                 await context.SaveChangesAsync();
             }
@@ -120,7 +120,7 @@ namespace Ideaspace_backend.Controllers
         [HttpGet]
         public async Task<JsonResult> UsersHandler([FromQuery] GetUsersParams getUsersParams)
         {
-            var isSessionValid = CheckSession(ApiValues.SESSION_ID_KEY);
+            var sessionId = CheckSession(ApiValues.SESSION_ID_KEY);
             var response = new DataResponse<User>()
             {
                 Result = false,
@@ -128,9 +128,8 @@ namespace Ideaspace_backend.Controllers
                 Data = Array.Empty<User>()
             };
 
-            if (isSessionValid)
+            if (sessionId != null)
             {
-                var sessionId = HttpContext.Request.Cookies[ApiValues.SESSION_ID_KEY];
                 var queryParams = new Dictionary<ApiEnum, string>()
                 {
                     { ApiEnum.USER_LOGIN, getUsersParams.UserLogin },
@@ -147,7 +146,7 @@ namespace Ideaspace_backend.Controllers
                 }
                 catch (InvalidOperationException)
                 {
-                    response = await GetUserBySessionId(sessionId);
+                    response = await GetUserBySessionId(sessionId.ToString());
                 }
             }
 
@@ -160,17 +159,17 @@ namespace Ideaspace_backend.Controllers
             var parsedSessionId = long.Parse(sessionId);
 
             foundData = await context.Sessions
-                .Join(context.Users, session => session.user_id, user => user.user_id, (session, user) => new
+                .Where(session => session.SessionId == parsedSessionId)
+                .Join(context.Users, session => session.UserId, user => user.UserId, (session, user) => new
                 {
-                    sessionId = session.session_id,
+                    sessionId = session.SessionId,
                     userData = new User()
                     {
-                        user_login = user.user_login,
-                        user_birthday = user.user_birthday,
-                        user_status = user.user_status
+                        UserLogin = user.UserLogin,
+                        UserBirthday = user.UserBirthday,
+                        UserStatus = user.UserStatus
                     }
                 })
-                .Where(joinItem => joinItem.sessionId == parsedSessionId)
                 .Select(foundItem => foundItem.userData)
                 .ToArrayAsync();
 
@@ -187,12 +186,12 @@ namespace Ideaspace_backend.Controllers
             User[]? foundData = Array.Empty<User>();
 
             foundData = await context.Users
-                .Where(user => user.user_login.Equals(userLogin))
+                .Where(user => user.UserLogin.Equals(userLogin))
                 .Select(foundUser => new User()
                 {
-                    user_login = foundUser.user_login,
-                    user_birthday = foundUser.user_birthday,
-                    user_status = foundUser.user_status
+                    UserLogin = foundUser.UserLogin,
+                    UserBirthday = foundUser.UserBirthday,
+                    UserStatus = foundUser.UserStatus
                 })
                 .ToArrayAsync();
 
@@ -208,10 +207,10 @@ namespace Ideaspace_backend.Controllers
         {
             var foundUsersPortion = new List<User>();
             var usersArray = await context.Users
-                .Where(user => user.user_login.Contains(searchString))
+                .Where(user => user.UserLogin.Contains(searchString))
                 .Select(foundUser => new User()
                 {
-                    user_login = foundUser.user_login
+                    UserLogin = foundUser.UserLogin
                 })
                 .ToArrayAsync();
 
@@ -236,14 +235,13 @@ namespace Ideaspace_backend.Controllers
         public async Task<JsonResult> LogOutHandler()
         {
             Session? sessionToRemove = null;
-            if (CheckSession(ApiValues.SESSION_ID_KEY))
+            var sessionId = CheckSession(ApiValues.SESSION_ID_KEY);
+            if (sessionId != null)
             {
                 try
                 {   
-                    var parsedSessionId = long.Parse(HttpContext.Request.Cookies[ApiValues.SESSION_ID_KEY]);
-
                     sessionToRemove = await context.Sessions
-                        .FirstAsync(session => session.session_id == parsedSessionId);
+                        .FirstAsync(session => session.SessionId == sessionId);
                 }
                 catch (Exception)
                 {}
@@ -264,24 +262,25 @@ namespace Ideaspace_backend.Controllers
             });
         }
 
+        // PUT: /Users
         [HttpPut]
         public async Task<JsonResult> EditUser([FromForm] EditUserParams newUserData)
         {
             User? foundUser = null;
-            if (CheckSession(ApiValues.SESSION_ID_KEY))
-            {
-                var parsedSessionId = long.Parse(HttpContext.Request.Cookies[ApiValues.SESSION_ID_KEY]);
+            var sessionId = CheckSession(ApiValues.SESSION_ID_KEY);
 
+            if (sessionId != null)
+            {
                 try
                 {
                     var foundSession = await context.Sessions
-                        .FirstAsync(session => session.session_id == parsedSessionId);
+                        .FirstAsync(session => session.SessionId == sessionId);
 
                     foundUser = await context.Users
-                        .FirstAsync(user => user.user_id == foundSession.user_id);
+                        .FirstAsync(user => user.UserId == foundSession.UserId);
 
-                    foundUser.user_birthday = newUserData.UserBirthday;
-                    foundUser.user_status = newUserData.UserStatus;
+                    foundUser.UserBirthday = newUserData.UserBirthday;
+                    foundUser.UserStatus = newUserData.UserStatus;
 
                     await context.SaveChangesAsync();
                 }

@@ -5,11 +5,13 @@ namespace Ideaspace_backend.Models.Entities
 {
     public class Like
     {
-        [DatabaseGenerated(DatabaseGeneratedOption.Identity), Key]
-        public long like_id { get; set; }
+        [DatabaseGenerated(DatabaseGeneratedOption.Identity), Key, Column("like_id")]
+        public long LikeId { get; set; }
 
-        public long? user_id { get; set; }
+        [Column("user_id")]
+        public long? UserId { get; set; }
 
-        public long? post_id { get; set; }
+        [Column("post_id")]
+        public long? PostId { get; set; }
     }
 }

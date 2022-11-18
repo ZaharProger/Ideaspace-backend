@@ -22,21 +22,20 @@ namespace Ideaspace_backend.Controllers
         public async Task<JsonResult> CreatePost([FromForm] CreatePostParams postData)
         {
             var isUserExist = false;
-            if (CheckSession(ApiValues.SESSION_ID_KEY))
+            var sessionId = CheckSession(ApiValues.SESSION_ID_KEY);
+            if (sessionId != null)
             {
-                var parsedSessionId = long.Parse(HttpContext.Request.Cookies[ApiValues.SESSION_ID_KEY]);
-
                 try
                 {
                     var foundSession = await context.Sessions
-                        .FirstAsync(session => session.session_id == parsedSessionId);
+                        .FirstAsync(session => session.SessionId == sessionId);
 
                     await context.Posts.AddAsync(new Post()
                     {
-                        user_id = foundSession.user_id,
-                        creation_date = postData.CreationDate,
-                        creation_time = postData.CreationTime,
-                        content = postData.Content
+                        UserId = foundSession.UserId,
+                        CreationDate = postData.CreationDate,
+                        CreationTime = postData.CreationTime,
+                        Content = postData.Content
                     });
                     await context.SaveChangesAsync();
                     isUserExist = true;
@@ -49,6 +48,75 @@ namespace Ideaspace_backend.Controllers
             {
                 Result = isUserExist,
                 Message = isUserExist? "" : ApiValues.SESSION_NOT_FOUND
+            });
+        }
+
+        // GET: /Posts?userLogin=
+        [HttpGet]
+        public async Task<JsonResult> GetUserPosts (string userLogin, int limit=30)
+        {
+            Post[]? foundPostsPortionArray = Array.Empty<Post>();
+            Post[]? foundPostsArray = Array.Empty<Post>();
+            var sessionId = CheckSession(ApiValues.SESSION_ID_KEY);
+
+            if (sessionId != null)
+            {
+                try
+                {
+                    var foundUser = await context.Users
+                        .FirstAsync(user => user.UserLogin.Equals(userLogin));
+
+                    var foundPosts = await context.Posts
+                        .Where(post => post.UserId == foundUser.UserId)
+                        .Select(foundPost => new Post()
+                        {
+                            UserLogin = foundUser.UserLogin,
+                            PostId = foundPost.PostId,
+                            CreationDate = foundPost.CreationDate,
+                            CreationTime = foundPost.CreationTime,
+                            Content = foundPost.Content
+                        })
+                        .ToListAsync();
+
+                    foundPosts.AddRange(await context.Reposts
+                        .Where(repost => repost.UserId == foundUser.UserId)
+                        .Join(context.Posts, repost => repost.PostId, post => post.PostId, (repost, post) => new Post()
+                        {
+                            UserId = post.UserId,
+                            PostId = post.PostId,
+                            CreationDate = post.CreationDate,
+                            CreationTime = post.CreationTime,
+                            Content = post.Content
+                        })
+                        .Join(context.Users, post => post.UserId, user => user.UserId, (post, user) => new Post()
+                        {
+                            UserLogin = user.UserLogin,
+                            PostId = post.PostId,
+                            CreationDate = post.CreationDate,
+                            CreationTime = post.CreationTime,
+                            Content = post.Content
+                        })
+                        .ToListAsync());
+
+                    foundPostsArray = foundPosts.ToArray();
+                    var foundPostsPortion = new List<Post>();
+                    for (int i = 0; i < limit && i < foundPostsArray.Length; ++i)
+                    {
+                        foundPostsPortion.Add(foundPostsArray[i]);
+                    }
+
+                    foundPostsPortionArray = foundPostsPortion.ToArray();
+                }
+                catch (InvalidOperationException)
+                { }
+            }
+
+            return new JsonResult(new PaginationResponse<Post>()
+            {
+                Result = foundPostsPortionArray.Length != 0,
+                IsOver = limit >= foundPostsArray.Length,
+                Message = "",
+                Data = foundPostsPortionArray
             });
         }
     }

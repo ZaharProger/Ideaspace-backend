@@ -7,26 +7,20 @@ namespace Ideaspace_backend.Controllers
     {
         protected IdeaspaceDBContext context;
 
-        protected bool CheckSession(string cookieKey)
+        protected long? CheckSession(string cookieKey)
         {
-            var isSessionValid = true;
+            long? sessionId = null;
             if (HttpContext.Request.Cookies[cookieKey] != null)
             {
                 try
                 {
-                    long.Parse(HttpContext.Request.Cookies[cookieKey]);
+                    sessionId = long.Parse(HttpContext.Request.Cookies[cookieKey]);
                 }
                 catch (FormatException)
-                {
-                    isSessionValid = false;
-                }
-            }
-            else
-            {
-                isSessionValid = false;
+                {}
             }
 
-            return isSessionValid;
+            return sessionId;
         }
     }
 }
