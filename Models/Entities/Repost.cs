@@ -13,5 +13,11 @@ namespace Ideaspace_backend.Models.Entities
 
         [Column("post_id")]
         public long? PostId { get; set; }
+
+        [Column("repost_date")]
+        public long RepostDate { get; set; }
+
+        [Column("repost_time")]
+        public int RepostTime { get; set; }
     }
 }

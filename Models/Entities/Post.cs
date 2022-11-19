@@ -22,5 +22,8 @@ namespace Ideaspace_backend.Models.Entities
 
         [Column("content", TypeName = "varchar(250)")]
         public string Content { get; set; }
+
+        [NotMapped]
+        public bool IsLiked { get; set; }
     }
 }

@@ -53,7 +53,7 @@ namespace Ideaspace_backend.Controllers
 
         // GET: /Posts?userLogin=
         [HttpGet]
-        public async Task<JsonResult> GetPostsHandler([FromQuery] GetPostParams getPostParams)
+        public async Task<JsonResult> GetPostsHandler([FromQuery] GetParams getPostParams)
         {
             var foundPostsArray = Array.Empty<Post>();
             var foundPosts = Array.Empty<Post>();
@@ -66,7 +66,7 @@ namespace Ideaspace_backend.Controllers
                     var foundUser = await context.Users
                         .FirstAsync(user => user.UserLogin.Equals(getPostParams.Key));
 
-                    foundPosts = getPostParams.Likes == 1 ? await GetLikedPosts(foundUser) : await GetPosts(foundUser);
+                    foundPosts = await GetPosts(foundUser);
                     var foundDataPortion = new List<Post>();
                     for (int i = 0; i < getPostParams.Limit && i < foundPosts.Length; ++i)
                     {
@@ -108,8 +108,8 @@ namespace Ideaspace_backend.Controllers
                 {
                     UserId = post.UserId,
                     PostId = post.PostId,
-                    CreationDate = post.CreationDate,
-                    CreationTime = post.CreationTime,
+                    CreationDate = repost.RepostDate,
+                    CreationTime = repost.RepostTime,
                     Content = post.Content
                 })
                 .Join(context.Users, post => post.UserId, user => user.UserId, (post, user) => new Post()
@@ -122,24 +122,39 @@ namespace Ideaspace_backend.Controllers
                 })
                 .ToListAsync());
 
-            return foundPosts.ToArray();
-        }
-
-        private async Task<Post[]> GetLikedPosts(User? foundUser)
-        {
-            var foundPosts = await context.Likes
+            var likedPosts = await context.Likes
                 .Where(like => like.UserId == foundUser.UserId)
                 .Join(context.Posts, like => like.PostId, post => post.PostId, (like, post) => new Post()
                 {
-                    UserLogin = foundUser.UserLogin,
+                    UserId = post.UserId,
                     PostId = post.PostId,
+                    CreationDate = post.CreationDate,
+                    CreationTime = post.CreationTime,
+                    Content = post.Content
+                })
+                .Join(context.Users, post => post.UserId, user => user.UserId, (post, user) => new Post()
+                {
+                    UserLogin = user.UserLogin,
+                    PostId = post.PostId,
+                    IsLiked = true,
                     CreationDate = post.CreationDate,
                     CreationTime = post.CreationTime,
                     Content = post.Content
                 })
                 .ToListAsync();
 
-            return foundPosts.ToArray();
+            foundPosts.ForEach(foundPost =>
+            {
+                foundPost.IsLiked = likedPosts
+                    .Where(likedPost => likedPost.PostId == foundPost.PostId)
+                    .Any();
+            });
+            foundPosts.RemoveAll(foundPost => foundPost.IsLiked);
+            foundPosts.AddRange(likedPosts);
+
+            return foundPosts
+                .OrderByDescending(post => post.CreationDate + post.CreationTime)
+                .ToArray();
         }
     }
 }
