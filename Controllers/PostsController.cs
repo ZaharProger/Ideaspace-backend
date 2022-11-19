@@ -53,10 +53,10 @@ namespace Ideaspace_backend.Controllers
 
         // GET: /Posts?userLogin=
         [HttpGet]
-        public async Task<JsonResult> GetUserPosts (string userLogin, int limit=30)
+        public async Task<JsonResult> GetPostsHandler([FromQuery] GetPostParams getPostParams)
         {
-            Post[]? foundPostsPortionArray = Array.Empty<Post>();
-            Post[]? foundPostsArray = Array.Empty<Post>();
+            var foundPostsArray = Array.Empty<Post>();
+            var foundPosts = Array.Empty<Post>();
             var sessionId = CheckSession(ApiValues.SESSION_ID_KEY);
 
             if (sessionId != null)
@@ -64,48 +64,16 @@ namespace Ideaspace_backend.Controllers
                 try
                 {
                     var foundUser = await context.Users
-                        .FirstAsync(user => user.UserLogin.Equals(userLogin));
+                        .FirstAsync(user => user.UserLogin.Equals(getPostParams.Key));
 
-                    var foundPosts = await context.Posts
-                        .Where(post => post.UserId == foundUser.UserId)
-                        .Select(foundPost => new Post()
-                        {
-                            UserLogin = foundUser.UserLogin,
-                            PostId = foundPost.PostId,
-                            CreationDate = foundPost.CreationDate,
-                            CreationTime = foundPost.CreationTime,
-                            Content = foundPost.Content
-                        })
-                        .ToListAsync();
-
-                    foundPosts.AddRange(await context.Reposts
-                        .Where(repost => repost.UserId == foundUser.UserId)
-                        .Join(context.Posts, repost => repost.PostId, post => post.PostId, (repost, post) => new Post()
-                        {
-                            UserId = post.UserId,
-                            PostId = post.PostId,
-                            CreationDate = post.CreationDate,
-                            CreationTime = post.CreationTime,
-                            Content = post.Content
-                        })
-                        .Join(context.Users, post => post.UserId, user => user.UserId, (post, user) => new Post()
-                        {
-                            UserLogin = user.UserLogin,
-                            PostId = post.PostId,
-                            CreationDate = post.CreationDate,
-                            CreationTime = post.CreationTime,
-                            Content = post.Content
-                        })
-                        .ToListAsync());
-
-                    foundPostsArray = foundPosts.ToArray();
-                    var foundPostsPortion = new List<Post>();
-                    for (int i = 0; i < limit && i < foundPostsArray.Length; ++i)
+                    foundPosts = getPostParams.Likes == 1 ? await GetLikedPosts(foundUser) : await GetPosts(foundUser);
+                    var foundDataPortion = new List<Post>();
+                    for (int i = 0; i < getPostParams.Limit && i < foundPosts.Length; ++i)
                     {
-                        foundPostsPortion.Add(foundPostsArray[i]);
+                        foundDataPortion.Add(foundPosts[i]);
                     }
 
-                    foundPostsPortionArray = foundPostsPortion.ToArray();
+                    foundPostsArray = foundDataPortion.ToArray();
                 }
                 catch (InvalidOperationException)
                 { }
@@ -113,11 +81,65 @@ namespace Ideaspace_backend.Controllers
 
             return new JsonResult(new PaginationResponse<Post>()
             {
-                Result = foundPostsPortionArray.Length != 0,
-                IsOver = limit >= foundPostsArray.Length,
+                Result = foundPostsArray.Length != 0,
+                IsOver = getPostParams.Limit >= foundPosts.Length,
                 Message = "",
-                Data = foundPostsPortionArray
+                Data = foundPostsArray
             });
+        }
+
+        private async Task<Post[]> GetPosts(User? foundUser)
+        {
+            var foundPosts = await context.Posts
+                .Where(post => post.UserId == foundUser.UserId)
+                .Select(foundPost => new Post()
+                {
+                    UserLogin = foundUser.UserLogin,
+                    PostId = foundPost.PostId,
+                    CreationDate = foundPost.CreationDate,
+                    CreationTime = foundPost.CreationTime,
+                    Content = foundPost.Content
+                })
+                .ToListAsync();
+
+            foundPosts.AddRange(await context.Reposts
+                .Where(repost => repost.UserId == foundUser.UserId)
+                .Join(context.Posts, repost => repost.PostId, post => post.PostId, (repost, post) => new Post()
+                {
+                    UserId = post.UserId,
+                    PostId = post.PostId,
+                    CreationDate = post.CreationDate,
+                    CreationTime = post.CreationTime,
+                    Content = post.Content
+                })
+                .Join(context.Users, post => post.UserId, user => user.UserId, (post, user) => new Post()
+                {
+                    UserLogin = user.UserLogin,
+                    PostId = post.PostId,
+                    CreationDate = post.CreationDate,
+                    CreationTime = post.CreationTime,
+                    Content = post.Content
+                })
+                .ToListAsync());
+
+            return foundPosts.ToArray();
+        }
+
+        private async Task<Post[]> GetLikedPosts(User? foundUser)
+        {
+            var foundPosts = await context.Likes
+                .Where(like => like.UserId == foundUser.UserId)
+                .Join(context.Posts, like => like.PostId, post => post.PostId, (like, post) => new Post()
+                {
+                    UserLogin = foundUser.UserLogin,
+                    PostId = post.PostId,
+                    CreationDate = post.CreationDate,
+                    CreationTime = post.CreationTime,
+                    Content = post.Content
+                })
+                .ToListAsync();
+
+            return foundPosts.ToArray();
         }
     }
 }

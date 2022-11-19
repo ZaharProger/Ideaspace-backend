@@ -14,17 +14,9 @@ namespace Ideaspace_backend.Controllers
     [ApiController]
     public class UsersController : IdeaspaceController
     {
-        private readonly Dictionary<ApiEnum, Func<string, int, Task<DataResponse<User>>>> usersFuncs;
-
         public UsersController(IdeaspaceDBContext context)
         {
             this.context = context;
-            usersFuncs = new Dictionary<ApiEnum, Func<string, int, Task<DataResponse<User>>>>()
-            {
-                { ApiEnum.SESSION_ID, GetUserBySessionId },
-                { ApiEnum.USER_LOGIN, GetUserByLogin },
-                { ApiEnum.SEARCH_STRING, GetUsersBySearchString }
-            };
         }
 
         // POST: /Users
@@ -118,7 +110,7 @@ namespace Ideaspace_backend.Controllers
 
         // GET: /Users?userId=&searchString=
         [HttpGet]
-        public async Task<JsonResult> UsersHandler([FromQuery] GetUsersParams getUsersParams)
+        public async Task<JsonResult> GetUsersHandler([FromQuery] GetParams getUsersParams)
         {
             var sessionId = CheckSession(ApiValues.SESSION_ID_KEY);
             var response = new DataResponse<User>()
@@ -130,21 +122,12 @@ namespace Ideaspace_backend.Controllers
 
             if (sessionId != null)
             {
-                var queryParams = new Dictionary<ApiEnum, string>()
+                if (!getUsersParams.Key.Equals(""))
                 {
-                    { ApiEnum.USER_LOGIN, getUsersParams.UserLogin },
-                    { ApiEnum.SEARCH_STRING, getUsersParams.SearchString }
-                };
-
-                try
-                {
-                    var nonEmptyParam = queryParams
-                        .First(queryParam => !queryParam.Value.Equals(""));
-
-
-                    response = await usersFuncs[nonEmptyParam.Key](nonEmptyParam.Value, getUsersParams.Limit);
+                    response = getUsersParams.Limit > 0 ? await GetUsersBySearchString(getUsersParams.Key, getUsersParams.Limit) 
+                        : await GetUserByLogin(getUsersParams.Key);
                 }
-                catch (InvalidOperationException)
+                else
                 {
                     response = await GetUserBySessionId(sessionId.ToString());
                 }
@@ -153,7 +136,7 @@ namespace Ideaspace_backend.Controllers
             return new JsonResult(response);
         }
 
-        private async Task<DataResponse<User>> GetUserBySessionId(string sessionId, int ok=1)
+        private async Task<DataResponse<User>> GetUserBySessionId(string sessionId)
         {
             User[]? foundData = Array.Empty<User>();
             var parsedSessionId = long.Parse(sessionId);
@@ -181,7 +164,7 @@ namespace Ideaspace_backend.Controllers
             };
         }
 
-        private async Task<DataResponse<User>> GetUserByLogin(string userLogin, int ok=1)
+        private async Task<DataResponse<User>> GetUserByLogin(string userLogin)
         {
             User[]? foundData = Array.Empty<User>();
 
