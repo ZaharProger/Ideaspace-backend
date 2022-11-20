@@ -25,5 +25,8 @@ namespace Ideaspace_backend.Models.Entities
 
         [NotMapped]
         public bool IsLiked { get; set; }
+
+        [NotMapped]
+        public bool IsReposted { get; set; }
     }
 }
