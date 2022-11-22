@@ -109,10 +109,12 @@ namespace Ideaspace_backend.Controllers
                 })
                 .ToListAsync();
 
-            var repostedPosts = await context.Reposts
-                .Where(repost => repost.UserId == foundUser.UserId)
+            var repostedPosts = context.Reposts
+                .Where(repost => currentUser == null ? repost.UserId == foundUser.UserId : 
+                repost.UserId == foundUser.UserId || repost.UserId == currentUser.UserId)
                 .Join(context.Posts, repost => repost.PostId, post => post.PostId, (repost, post) => new Post()
                 {
+                    ParentUserId = repost.UserId,
                     UserId = post.UserId,
                     PostId = post.PostId,
                     CreationDate = repost.RepostDate,
@@ -121,14 +123,14 @@ namespace Ideaspace_backend.Controllers
                 })
                 .Join(context.Users, post => post.UserId, user => user.UserId, (post, user) => new Post()
                 {
+                    ParentUserId = post.ParentUserId,
                     UserLogin = user.UserLogin,
                     PostId = post.PostId,
                     IsReposted = true,
                     CreationDate = post.CreationDate,
                     CreationTime = post.CreationTime,
                     Content = post.Content
-                })
-                .ToListAsync();
+                });
 
             var likedPosts = context.Likes
                 .Where(like => like.UserId == (currentUser == null ? foundUser.UserId : currentUser.UserId))
@@ -149,45 +151,43 @@ namespace Ideaspace_backend.Controllers
                     CreationTime = post.CreationTime,
                     Content = post.Content
                 });
-            
 
             if (currentUser != null)
             {
-                likedPosts = likedPosts.Where(likedPost => likedPost.UserLogin.Equals(foundUser.UserLogin));
+                repostedPosts = repostedPosts
+                    .Where(repostedPost => !(repostedPost.ParentUserId == currentUser.UserId &&
+                    !repostedPost.UserLogin.Equals(foundUser.UserLogin)));
+                likedPosts = likedPosts
+                    .Where(likedPost => likedPost.UserLogin.Equals(foundUser.UserLogin));
             }
+
+            var repostedPostsList = await repostedPosts.ToListAsync();
             var likedPostsList = await likedPosts.ToListAsync();
+            
 
             foundPosts.ForEach(foundPost =>
             {
                 foundPost.IsLiked = likedPostsList
-                    .Where(likedPost => likedPost.PostId == foundPost.PostId)
-                    .Any();
+                    .Exists(likedPost => likedPost.PostId == foundPost.PostId);
 
-                var foundDuplicatedPosts = repostedPosts
-                    .Where(repostedPost => repostedPost.PostId == foundPost.PostId);
-
-                if (foundDuplicatedPosts.Any())
-                {
-                    foundPost.IsReposted = foundDuplicatedPosts.First().IsReposted;
-                    foundPost.CreationDate = foundDuplicatedPosts.First().CreationDate;
-                    foundPost.CreationTime = foundDuplicatedPosts.First().CreationTime;
-                }
+                foundPost.IsReposted = repostedPostsList
+                    .Exists(repostedPost => repostedPost.PostId == foundPost.PostId);
 
                 if (foundPost.IsLiked)
                 {
                     likedPostsList.RemoveAll(likedPost => likedPost.PostId == foundPost.PostId);
                 }
-                else if (foundPost.IsReposted)
+
+                if (foundPost.IsReposted)
                 {
-                    repostedPosts.RemoveAll(repostedPost => repostedPost.PostId == foundPost.PostId);
+                    repostedPostsList.RemoveAll(repostedPost => repostedPost.PostId == foundPost.PostId);
                 }
             });
 
-            repostedPosts.ForEach(repostedPost =>
+            repostedPostsList.ForEach(repostedPost =>
             {
                 repostedPost.IsLiked = likedPostsList
-                    .Where(likedPost => likedPost.PostId == repostedPost.PostId)
-                    .Any();
+                    .Exists(likedPost => likedPost.PostId == repostedPost.PostId);
 
                 if (repostedPost.IsLiked)
                 {
@@ -195,7 +195,7 @@ namespace Ideaspace_backend.Controllers
                 }
             });
 
-            foundPosts.AddRange(repostedPosts);
+            foundPosts.AddRange(repostedPostsList);
             foundPosts.AddRange(likedPostsList);
 
             return foundPosts

@@ -12,6 +12,9 @@ namespace Ideaspace_backend.Models.Entities
         public long? UserId { get; set; }
 
         [NotMapped]
+        public long? ParentUserId { get; set; }
+
+        [NotMapped]
         public string UserLogin { get; set; }
 
         [Column("creation_date")]
