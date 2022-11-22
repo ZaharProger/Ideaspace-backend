@@ -123,15 +123,15 @@ namespace Ideaspace_backend.Controllers
                 {
                     UserLogin = user.UserLogin,
                     PostId = post.PostId,
-                    IsReposted = currentUser == null,
+                    IsReposted = true,
                     CreationDate = post.CreationDate,
                     CreationTime = post.CreationTime,
                     Content = post.Content
                 })
                 .ToListAsync();
 
-            List<Post>? likedPosts = currentUser == null? await context.Likes
-                .Where(like => like.UserId == foundUser.UserId)
+            var likedPosts = context.Likes
+                .Where(like => like.UserId == (currentUser == null ? foundUser.UserId : currentUser.UserId))
                 .Join(context.Posts, like => like.PostId, post => post.PostId, (like, post) => new Post()
                 {
                     UserId = post.UserId,
@@ -144,38 +144,59 @@ namespace Ideaspace_backend.Controllers
                 {
                     UserLogin = user.UserLogin,
                     PostId = post.PostId,
-                    IsLiked = currentUser == null,
+                    IsLiked = true,
                     CreationDate = post.CreationDate,
                     CreationTime = post.CreationTime,
                     Content = post.Content
-                })
-                .ToListAsync() : null;
+                });
+            
+
+            if (currentUser != null)
+            {
+                likedPosts = likedPosts.Where(likedPost => likedPost.UserLogin.Equals(foundUser.UserLogin));
+            }
+            var likedPostsList = await likedPosts.ToListAsync();
 
             foundPosts.ForEach(foundPost =>
             {
-                foundPost.IsLiked = likedPosts
+                foundPost.IsLiked = likedPostsList
                     .Where(likedPost => likedPost.PostId == foundPost.PostId)
                     .Any();
 
-                foundPost.IsReposted = repostedPosts
-                    .Where(repostedPost => repostedPost.PostId == foundPost.PostId)
-                    .Any();
+                var foundDuplicatedPosts = repostedPosts
+                    .Where(repostedPost => repostedPost.PostId == foundPost.PostId);
 
-                likedPosts.RemoveAll(likedPost => likedPost.PostId == foundPost.PostId && foundPost.IsLiked);
-                repostedPosts.RemoveAll(repostedPost => repostedPost.PostId == foundPost.PostId && foundPost.IsReposted);
+                if (foundDuplicatedPosts.Any())
+                {
+                    foundPost.IsReposted = foundDuplicatedPosts.First().IsReposted;
+                    foundPost.CreationDate = foundDuplicatedPosts.First().CreationDate;
+                    foundPost.CreationTime = foundDuplicatedPosts.First().CreationTime;
+                }
+
+                if (foundPost.IsLiked)
+                {
+                    likedPostsList.RemoveAll(likedPost => likedPost.PostId == foundPost.PostId);
+                }
+                else if (foundPost.IsReposted)
+                {
+                    repostedPosts.RemoveAll(repostedPost => repostedPost.PostId == foundPost.PostId);
+                }
             });
 
             repostedPosts.ForEach(repostedPost =>
             {
-                repostedPost.IsLiked = likedPosts
+                repostedPost.IsLiked = likedPostsList
                     .Where(likedPost => likedPost.PostId == repostedPost.PostId)
                     .Any();
 
-                likedPosts.RemoveAll(likedPost => likedPost.PostId == repostedPost.PostId && repostedPost.IsLiked);
+                if (repostedPost.IsLiked)
+                {
+                    likedPostsList.RemoveAll(likedPost => likedPost.PostId == repostedPost.PostId);
+                }
             });
 
             foundPosts.AddRange(repostedPosts);
-            foundPosts.AddRange(likedPosts);
+            foundPosts.AddRange(likedPostsList);
 
             return foundPosts
                 .OrderByDescending(post => post.CreationDate + post.CreationTime)
