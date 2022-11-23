@@ -108,7 +108,7 @@ namespace Ideaspace_backend.Controllers
             };
         }
 
-        // GET: /Users?userId=&searchString=
+        // GET: /Users?Key=&Limit=
         [HttpGet]
         public async Task<JsonResult> GetUsersHandler([FromQuery] GetParams getUsersParams)
         {
@@ -247,7 +247,7 @@ namespace Ideaspace_backend.Controllers
 
         // PUT: /Users
         [HttpPut]
-        public async Task<JsonResult> EditUser([FromForm] EditUserParams newUserData)
+        public async Task<JsonResult> EditUserHandler([FromForm] EditUserParams newUserData)
         {
             User? foundUser = null;
             var sessionId = CheckSession(ApiValues.SESSION_ID_KEY);
@@ -274,7 +274,7 @@ namespace Ideaspace_backend.Controllers
             return new JsonResult(new BaseResponse()
             {
                 Result = foundUser != null,
-                Message = ""
+                Message = sessionId != null? "" : ApiValues.SESSION_NOT_FOUND
             });
         }
     }

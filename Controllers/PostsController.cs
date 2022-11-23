@@ -90,7 +90,7 @@ namespace Ideaspace_backend.Controllers
             {
                 Result = foundPostsArray.Length != 0,
                 IsOver = getPostParams.Limit >= foundPosts.Length,
-                Message = "",
+                Message = sessionId != null? "" : ApiValues.SESSION_NOT_FOUND,
                 Data = foundPostsArray
             });
         }
@@ -124,9 +124,9 @@ namespace Ideaspace_backend.Controllers
                 .Join(context.Users, post => post.UserId, user => user.UserId, (post, user) => new Post()
                 {
                     ParentUserId = post.ParentUserId,
+                    IsReposted = true,
                     UserLogin = user.UserLogin,
                     PostId = post.PostId,
-                    IsReposted = true,
                     CreationDate = post.CreationDate,
                     CreationTime = post.CreationTime,
                     Content = post.Content
@@ -152,55 +152,52 @@ namespace Ideaspace_backend.Controllers
                     Content = post.Content
                 });
 
+            List<Post>? currentUserReposts = null;
             if (currentUser != null)
             {
+                currentUserReposts = repostedPosts
+                    .Where(repostedPost => repostedPost.ParentUserId == currentUser.UserId)
+                    .ToList();
+
                 repostedPosts = repostedPosts
-                    .Where(repostedPost => !(repostedPost.ParentUserId == currentUser.UserId &&
-                    !repostedPost.UserLogin.Equals(foundUser.UserLogin)));
-                likedPosts = likedPosts
-                    .Where(likedPost => likedPost.UserLogin.Equals(foundUser.UserLogin));
+                    .Where(repostedPost => repostedPost.ParentUserId == foundUser.UserId);
             }
 
             var repostedPostsList = await repostedPosts.ToListAsync();
             var likedPostsList = await likedPosts.ToListAsync();
-            
 
-            foundPosts.ForEach(foundPost =>
-            {
-                foundPost.IsLiked = likedPostsList
-                    .Exists(likedPost => likedPost.PostId == foundPost.PostId);
-
-                foundPost.IsReposted = repostedPostsList
-                    .Exists(repostedPost => repostedPost.PostId == foundPost.PostId);
-
-                if (foundPost.IsLiked)
-                {
-                    likedPostsList.RemoveAll(likedPost => likedPost.PostId == foundPost.PostId);
-                }
-
-                if (foundPost.IsReposted)
-                {
-                    repostedPostsList.RemoveAll(repostedPost => repostedPost.PostId == foundPost.PostId);
-                }
-            });
-
-            repostedPostsList.ForEach(repostedPost =>
-            {
-                repostedPost.IsLiked = likedPostsList
-                    .Exists(likedPost => likedPost.PostId == repostedPost.PostId);
-
-                if (repostedPost.IsLiked)
-                {
-                    likedPostsList.RemoveAll(likedPost => likedPost.PostId == repostedPost.PostId);
-                }
-            });
+            SyncPosts(foundPosts, currentUserReposts, likedPostsList);
+            SyncPosts(repostedPostsList, currentUserReposts, likedPostsList);
 
             foundPosts.AddRange(repostedPostsList);
-            foundPosts.AddRange(likedPostsList);
+            if (currentUser == null)
+            {
+                foundPosts.AddRange(likedPostsList);
+            }
 
             return foundPosts
                 .OrderByDescending(post => post.CreationDate + post.CreationTime)
                 .ToArray();
+        }
+
+        private void SyncPosts(List<Post>? mainPosts, List<Post>? repostsToSync, List<Post>? likesToSync)
+        {
+            mainPosts.ForEach(mainPost =>
+            {
+                if (repostsToSync != null)
+                {
+                    mainPost.IsReposted = repostsToSync
+                        .Exists(repostedPost => repostedPost.PostId == mainPost.PostId);
+                }
+
+                mainPost.IsLiked = likesToSync
+                    .Exists(likedPost => likedPost.PostId == mainPost.PostId);
+
+                if (mainPost.IsLiked)
+                {
+                    likesToSync.RemoveAll(likedPost => likedPost.PostId == mainPost.PostId);
+                }
+            });
         }
     }
 }
