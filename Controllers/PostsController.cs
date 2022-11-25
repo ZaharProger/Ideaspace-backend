@@ -12,9 +12,16 @@ namespace Ideaspace_backend.Controllers
     [ApiController]
     public class PostsController : IdeaspaceController
     {
+        private readonly Dictionary<int, Func<Post, User?, bool>> postsPredicates;
         public PostsController(IdeaspaceDBContext context)
         {
             this.context = context;
+            postsPredicates = new Dictionary<int, Func<Post, User?, bool>>()
+            {
+                { 0, (post, currentUser) => true },
+                { 1, (post, currentUser) => post.IsLiked },
+                { 2, (post, currentUser) => post.IsReposted || currentUser.UserLogin == post.UserLogin }
+            };
         }
 
         // POST: /Posts
@@ -73,7 +80,9 @@ namespace Ideaspace_backend.Controllers
 
                     var sameUsers = currentUser.UserId == foundUser.UserId;
 
-                    foundPosts = await GetPosts(sameUsers? currentUser : foundUser, sameUsers? null : currentUser);
+                    foundPosts = await GetPosts(sameUsers? currentUser : foundUser, 
+                        getPostParams.Predicate, sameUsers? null : currentUser);
+
                     var foundDataPortion = new List<Post>();
                     for (int i = 0; i < getPostParams.Limit && i < foundPosts.Length; ++i)
                     {
@@ -95,7 +104,7 @@ namespace Ideaspace_backend.Controllers
             });
         }
 
-        private async Task<Post[]> GetPosts(User? foundUser, User? currentUser=null)
+        private async Task<Post[]> GetPosts(User? foundUser, int predicateCode, User? currentUser=null)
         {
             var foundPosts = await context.Posts
                 .Where(post => post.UserId == foundUser.UserId)
@@ -186,6 +195,7 @@ namespace Ideaspace_backend.Controllers
 
             return foundPosts
                 .OrderByDescending(post => post.CreationDate + post.CreationTime)
+                .Where(post => postsPredicates[predicateCode](post, foundUser))
                 .ToArray();
         }
 

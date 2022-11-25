@@ -4,5 +4,7 @@
     {
         public string Key { get; set; } = "";
         public int Limit { get; set; } = 0;
+
+        public int Predicate { get; set; } = 0;
     }
 }
