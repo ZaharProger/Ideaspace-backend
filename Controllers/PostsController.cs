@@ -175,6 +175,15 @@ namespace Ideaspace_backend.Controllers
                 foundPosts.AddRange(likedPostsList);
             }
 
+            foundPosts.ForEach(post =>
+            {
+                post.LikesAmount = context.Likes
+                    .Count(like => like.PostId == post.PostId);
+
+                post.RepostsAmount = context.Reposts
+                    .Count(repost => repost.PostId == post.PostId);
+            });
+
             return foundPosts
                 .OrderByDescending(post => post.CreationDate + post.CreationTime)
                 .ToArray();
