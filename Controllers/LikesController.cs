@@ -19,7 +19,7 @@ namespace Ideaspace_backend.Controllers
 
         // POST: /api/Likes?postId=
         [HttpPost]
-        public async Task<JsonResult> AddLikeHandler(long postId)
+        public async Task<JsonResult> AddLikeHandler(long postId, long date)
         {
             var isSuccessfulу = false;
             var sessionId = CheckSession(ApiValues.SESSION_ID_KEY);
@@ -31,10 +31,14 @@ namespace Ideaspace_backend.Controllers
                     var foundSession = await context.Sessions
                         .FirstAsync(session => session.SessionId == sessionId);
 
+                    var currentDateTime = DateTime.Now;
+
                     await context.Likes.AddAsync(new Like()
                     {
                         UserId = foundSession.UserId,
-                        PostId = postId
+                        PostId = postId,
+                        LikeDate = date,
+                        LikeTime = currentDateTime.Hour * 3600 + currentDateTime.Minute * 60
                     });
                     await context.SaveChangesAsync();
 
