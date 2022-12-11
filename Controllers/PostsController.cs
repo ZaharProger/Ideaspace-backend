@@ -218,5 +218,57 @@ namespace Ideaspace_backend.Controllers
                 }
             });
         }
+
+        [HttpGet("{postId}")]
+        public async Task<JsonResult> GetPostById([FromRoute] long postId)
+        {
+            Post[] foundPosts = Array.Empty<Post>();
+            var sessionId = CheckSession(ApiValues.SESSION_ID_KEY);
+
+            if (sessionId != null)
+            {
+                var foundSession = await context.Sessions
+                    .FirstAsync(session => session.SessionId == sessionId);
+
+                foundPosts = await context.Posts
+                    .Where(post => post.PostId == postId && post.UserId == foundSession.UserId)
+                    .ToArrayAsync();
+            }
+
+            return new JsonResult(new DataResponse<Post>()
+            {
+                Result = foundPosts.Length != 0,
+                Message = foundPosts.Length != 0? "" : ApiValues.SESSION_NOT_FOUND,
+                Data = foundPosts
+            });
+        }
+
+        [HttpPut]
+        public async Task<JsonResult> EditPostHandler([FromForm] EditPostParams postParams)
+        {
+            Post? foundPost = null;
+            var sessionId = CheckSession(ApiValues.SESSION_ID_KEY);
+
+            if (sessionId != null)
+            {
+                try
+                {
+                    foundPost = await context.Posts
+                        .FirstAsync(post => post.PostId == postParams.PostId);
+
+                    foundPost.Content = postParams.Content;
+
+                    await context.SaveChangesAsync();
+                }
+                catch (InvalidOperationException)
+                { }
+            }
+
+            return new JsonResult(new BaseResponse()
+            {
+                Result = foundPost != null,
+                Message = sessionId != null ? "" : ApiValues.SESSION_NOT_FOUND
+            });
+        }
     }
 }
