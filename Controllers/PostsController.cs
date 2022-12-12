@@ -270,5 +270,34 @@ namespace Ideaspace_backend.Controllers
                 Message = sessionId != null ? "" : ApiValues.SESSION_NOT_FOUND
             });
         }
+
+        [HttpDelete]
+        public async Task<JsonResult> DeletePostHandler([FromQuery] long postId)
+        {
+            Post? postToRemove = null;
+            var sessionId = CheckSession(ApiValues.SESSION_ID_KEY);
+            if (sessionId != null)
+            {
+                try
+                {
+                    postToRemove = await context.Posts
+                        .FirstAsync(post => post.PostId == postId);
+                }
+                catch (Exception)
+                { }
+
+                if (postToRemove != null)
+                {
+                    context.Posts.Remove(postToRemove);
+                    await context.SaveChangesAsync();
+                }
+            }
+
+            return new JsonResult(new BaseResponse()
+            {
+                Result = postToRemove != null,
+                Message = postToRemove != null ? "" : ApiValues.SESSION_NOT_FOUND
+            });
+        }
     }
 }
